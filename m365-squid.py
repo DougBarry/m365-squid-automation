@@ -9,11 +9,15 @@ import errno
 
 logging.basicConfig(level=logging.DEBUG)
 
-PYTHON_CMD = shutil.which('python')
+SQUID_PROC_NAME = "squid"
+
+PYTHON_CMD = "/bin/python3"
+#PYTHON_CMD = shutil.which('python')
 if not PYTHON_CMD:
     PYTHON_CMD = shutil.which('python3')
 
-SQUID_CMD = shutil.which('squid')
+SQUID_CMD = "/sbin/squid"
+#SQUID_CMD = shutil.which('squid')
 if not SQUID_CMD:
     logging.fatal(f"Could not locate squid executable in PATH: {os.environ.get('PATH', '')}")
     exit(errno.EPERM)
@@ -82,9 +86,9 @@ logging.info("Running squid pre-flight check")
 SQUID_OPTS = f"-k parse " \
              f"-f {OUTPUT_FILE_PATH}"
 
+CMD = f"{SQUID_CMD} {SQUID_OPTS}"
 return_code = -1
 try:
-    CMD = f"{SQUID_CMD} {SQUID_OPTS}"
     logging.debug(f"Executing: '{CMD}'")
     return_code = subprocess.call(CMD.split())
 except (OSError, subprocess.CalledProcessError) as exception:
@@ -95,3 +99,36 @@ except (OSError, subprocess.CalledProcessError) as exception:
 if return_code:
     logging.fatal(f"Subprocess squid returned error code '{return_code}'.")
     exit(return_code)
+
+# everything seems ok...
+# try to restart squid?
+
+SQUID_OPTS = f"-k reconfigure"
+CMD = f"{SQUID_CMD} {SQUID_OPTS}"
+
+return_code = -1
+for proc in psutil.process_iter():
+    try:
+        if SQUID_PROC_NAME.lower() in proc.name().lower():
+            # squid is running...
+            try:
+                logging.debug(f"Executing: '{CMD}'")
+                return_code = subprocess.call(CMD.split())
+                break
+            except (OSError, subprocess.CalledProcessError) as exception:
+                logging.fatal(f"Unable to complete subprocess to squid. "
+                              f"Error: {exception.__class__.__name} {str(exception)}")
+    except Exception as e:
+        # squid might not be running...
+        logging.fatal(f"Unable to find squid process {e.__class__.__name} {str(e)}")
+        exit(1)
+
+if return_code == -1:
+    logging.fatal("Squid is not running!")
+    exit(1)
+
+if return_code:
+    logging.fatal(f"Subprocess {CMD} returned error code '{return_code}'.")
+    exit(return_code)
+
+exit(0)
