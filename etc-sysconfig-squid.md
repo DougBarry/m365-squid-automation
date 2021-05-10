@@ -1,0 +1,12 @@
+```
+# cat /etc/sysconfig/squid
+# default squid options
+SQUID_OPTS=""
+
+# Time to wait for Squid to shut down when asked. Should not be necessary
+# most of the time.
+SQUID_SHUTDOWN_TIMEOUT=100
+
+# default squid conf file
+SQUID_CONF="/opt/m365-squid-conf-dynamic/squid.conf"
+```
