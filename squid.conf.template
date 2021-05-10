@@ -1,0 +1,86 @@
+cache_mem                     512 MB
+maximum_object_size_in_memory 512 KB
+access_log                    daemon:/var/log/squid/access.log squid
+workers           3
+
+$acl_set
+
+#
+acl mycompany-auth-domain dstdomain login.mycompany.tld
+
+# ACL to control permissions on via the direct CONNECT method (SSL/TLS)
+acl CONNECT method CONNECT
+
+# Consider these ports safe to connect out to via SSL/TLS
+acl SSL_ports port 443
+
+# Consider these ports safe to connect out to via HTTP
+acl Safe_ports port 443           # https
+acl Safe_ports port 80            # http
+
+# acl fragment for manager
+acl manager proto cache_object
+
+# All IPv4 networks
+acl all-networks src all
+
+# acl fragment for m365-proxy-users
+acl m365-proxy-users src 172.16.1.0/24
+
+# All private server networks managed within mycompany
+acl mycompany-all-private-server-networks src 172.16.0.0/16
+
+# All public address spaces managed within mycompany
+acl mycompany-all-public-networks src 123.45.67.0/24
+
+# Internal loadbalancers
+acl mycompany-loadbalancers src 172.16.1.0/24
+
+# acl fragment for QUERY
+acl QUERY urlpath_regex cgi-bin \?
+
+# http_access fragment for manager localhost
+http_access allow manager localhost
+
+$rule_allow
+
+# http_access fragment for m365-proxy-users mycompany-auth-domain
+http_access allow m365-proxy-users mycompany-auth-domain
+
+# Deny outbound connections to any unsafe ports
+http_access deny !Safe_ports
+
+# Specifically deny using the CONNECT method (ACL) on non SSL/TLS ports
+http_access deny CONNECT !SSL_ports
+
+# Deny inbound traffic from anywhere not listed in our ACLs
+http_access deny all
+
+# http_access fragment for localhost
+http_access deny localhost
+
+# http_access fragment for manager
+http_access deny manager
+
+# fragment for http_port 3128
+http_port 3128
+
+# cache_store_logs
+cache_store_log /var/log/squid/store.log
+
+# cache_mgr
+cache_mgr devops@mycompany.tld
+
+# refresh_patterns
+refresh_pattern ^ftp:           1440    20%     10080
+refresh_pattern ^gopher:        1440    0%      1440
+refresh_pattern .               0       20%     4320
+
+# no_caches
+no_cache deny QUERY
+
+# coredump_dir
+coredump_dir /var/spool/squid
+
+# follow_x_forwarded_for
+follow_x_forwarded_for allow mycompany-loadbalancers
